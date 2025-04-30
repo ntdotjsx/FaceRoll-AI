@@ -23,35 +23,32 @@ DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1366887058794352640/Wkh8
 last_sent = {"name": None, "timestamp": 0}
 cooldown = 5  # Time cooldown in seconds to avoid spamming
 
-def send_to_discord(name, confidence, image):
-    """Send detection info and image to Discord webhook"""
+def send_to_discord(name, confidence, image, is_unknown=False):
     now = time.time()
     if name == last_sent["name"] and now - last_sent["timestamp"] < cooldown:
         return
     last_sent["name"] = name
     last_sent["timestamp"] = now
-    
-    # Convert image to bytes for sending
+
     _, img_encoded = cv2.imencode('.jpg', image)
     img_bytes = img_encoded.tobytes()
-
-    # Generate filename with timestamp
-    timestamp = int(now)  # Use integer timestamp for filename
+    timestamp = int(now)
     filename = f"detected_face_{timestamp}.jpg"
 
-    content = f"✅ **{name}** เข้าเรียน คาบ: ({confidence:.2f}%)"
+    if is_unknown:
+        content = f"⚠️ **ไม่รู้จักบุคคล** (Confidence: {confidence:.2f}%)"
+    else:
+        content = f"✅ **{name}** เข้าเรียน คาบ: ({confidence:.2f}%)"
+
     try:
-        # Send both image and text content separately using multipart form-data
         files = {
             "file": (filename, BytesIO(img_bytes), "image/jpeg")
         }
         data = {
             "content": content
         }
-
-        # POST request with both content and image
         response = requests.post(DISCORD_WEBHOOK_URL, data=data, files=files)
-        response.raise_for_status()  # Raise an error for bad responses
+        response.raise_for_status()
     except requests.RequestException as e:
         print("Error sending to Discord:", e)
 
@@ -79,6 +76,7 @@ async def detect_face(file: UploadFile = File(...)):
                 send_to_discord(name, confidence_percent, frame)
                 return {"result": name, "confidence": confidence_percent}
             else:
+                send_to_discord("Unknown", 100 - confidence, frame, is_unknown=True)
                 return {"result": "Unknown", "confidence": round(100 - confidence, 2)}
         else:
             return {"result": "No Face Detected"}
