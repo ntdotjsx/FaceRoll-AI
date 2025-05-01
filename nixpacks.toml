@@ -1,5 +1,0 @@
-[phases.setup]
-nixpkgs = ['python311', 'pip', 'libGL', 'libGLU', 'mesa']
-
-[start]
-cmd = "uvicorn recognize_faces:app --host 0.0.0.0 --port $PORT"
