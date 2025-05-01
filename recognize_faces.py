@@ -77,6 +77,6 @@ async def detect_face(file: UploadFile = File(...)):
                 send_to_discord("Unknown", 100 - confidence, frame, is_unknown=True)
                 return {"result": "Unknown", "confidence": round(100 - confidence, 2)}
         else:
-            return {"result": "No Face Detected"}
+            return {"result": "No Face", "confidence":""}
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
