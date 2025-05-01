@@ -25,7 +25,7 @@ last_sent = {"name": None, "timestamp": 0}
 cooldown = 5  # Time cooldown in seconds to avoid spamming
 
 
-def send_to_discord(name, confidence, image, is_unknown=False):
+def send_to_discord(name, confidence, image):
     now = time.time()
     if name == last_sent["name"] and now - last_sent["timestamp"] < cooldown:
         return
@@ -37,10 +37,7 @@ def send_to_discord(name, confidence, image, is_unknown=False):
     timestamp = int(now)
     filename = f"detected_face_{timestamp}.jpg"
 
-    if is_unknown:
-        content = f"⚠️ **ไม่รู้จักบุคคล** (Confidence: {confidence:.2f}%)"
-    else:
-        content = f"✅ **{name}** เข้าเรียน คาบ: ({confidence:.2f}%)"
+    content = f"✅ **{name}** เข้าเรียน คาบ: ({confidence:.2f}%)"
 
     try:
         files = {"file": (filename, BytesIO(img_bytes), "image/jpeg")}
@@ -74,7 +71,6 @@ async def detect_face(file: UploadFile = File(...)):
                 send_to_discord(name, confidence_percent, frame)
                 return {"result": name, "confidence": confidence_percent}
             else:
-                send_to_discord("Unknown", 100 - confidence, frame, is_unknown=True)
                 return {"result": "Unknown", "confidence": round(100 - confidence, 2)}
         else:
             return {"result": "No Face", "confidence":""}
