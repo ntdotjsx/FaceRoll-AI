@@ -13,14 +13,15 @@ recognizer = cv2.face.LBPHFaceRecognizer_create(
 
 # ฟังก์ชันเพิ่มคุณภาพใบหน้า
 def enhance_face(roi_gray):
-    blurred = cv2.GaussianBlur(roi_gray, (3, 3), 0)
-    sharpened = cv2.filter2D(blurred, -1, np.array([
-        [0, -1, 0],
-        [-1, 5, -1],
-        [0, -1, 0]
-    ]))
-    equalized = cv2.equalizeHist(sharpened)
-    resized = cv2.resize(equalized, (160, 120))
+    # ใช้ CLAHE (Contrast Limited Adaptive Histogram Equalization) เพื่อปรับแสงและคอนทราสต์
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    clahe_enhanced = clahe.apply(roi_gray)
+
+    # ใช้ Median Filtering เพื่อลด noise
+    filtered = cv2.medianBlur(clahe_enhanced, 3)
+
+    # Resize ให้ขนาดคงที่
+    resized = cv2.resize(filtered, (160, 120))
     return resized
 
 # เตรียมข้อมูล
