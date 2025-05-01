@@ -3,7 +3,6 @@ import json
 import numpy as np
 import requests
 import time
-import time
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
 from io import BytesIO
@@ -12,16 +11,19 @@ app = FastAPI()
 
 recognizer = cv2.face.LBPHFaceRecognizer_create()
 recognizer.read("trainer.yml")
-face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+face_cascade = cv2.CascadeClassifier(
+    cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+)
 
 # Load ID to name mapping
-with open('id_to_name.json', 'r') as json_file:
+with open("id_to_name.json", "r") as json_file:
     id_to_name = json.load(json_file)
 
 DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1366887058794352640/Wkh8438wAedRXaJwffMOgzGGk5SrjUFTtYSwLy1x9_9V8q8t66yW-TzpAaTbiuRdHYIe"  # Discord Webhook URL
 
 last_sent = {"name": None, "timestamp": 0}
 cooldown = 5  # Time cooldown in seconds to avoid spamming
+
 
 def send_to_discord(name, confidence, image, is_unknown=False):
     now = time.time()
@@ -30,7 +32,7 @@ def send_to_discord(name, confidence, image, is_unknown=False):
     last_sent["name"] = name
     last_sent["timestamp"] = now
 
-    _, img_encoded = cv2.imencode('.jpg', image)
+    _, img_encoded = cv2.imencode(".jpg", image)
     img_bytes = img_encoded.tobytes()
     timestamp = int(now)
     filename = f"detected_face_{timestamp}.jpg"
@@ -41,12 +43,8 @@ def send_to_discord(name, confidence, image, is_unknown=False):
         content = f"✅ **{name}** เข้าเรียน คาบ: ({confidence:.2f}%)"
 
     try:
-        files = {
-            "file": (filename, BytesIO(img_bytes), "image/jpeg")
-        }
-        data = {
-            "content": content
-        }
+        files = {"file": (filename, BytesIO(img_bytes), "image/jpeg")}
+        data = {"content": content}
         response = requests.post(DISCORD_WEBHOOK_URL, data=data, files=files)
         response.raise_for_status()
     except requests.RequestException as e:
@@ -67,7 +65,7 @@ async def detect_face(file: UploadFile = File(...)):
 
         if len(faces) > 0:
             (x, y, w, h) = max(faces, key=lambda r: r[2] * r[3])
-            roi_gray = gray[y:y+h, x:x+w]
+            roi_gray = gray[y : y + h, x : x + w]
             id_, confidence = recognizer.predict(roi_gray)
 
             if 0 <= confidence <= 85:
