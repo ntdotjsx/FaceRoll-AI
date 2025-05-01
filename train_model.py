@@ -103,7 +103,7 @@ for dir_name in sorted(os.listdir(data_path)):
         roi_gray = gray[y : y + h, x : x + w]
 
         # ✂️ กรองภาพเบลอ
-        if is_blurry(roi_gray, thresh=120.0):
+        if is_blurry(roi_gray, thresh=30.0):
             print(f"⚠️ รูปเบลอ, ข้าม: {img_path}")
             continue
 
