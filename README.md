@@ -11,3 +11,8 @@ $ train
 > python train_model.py
 
 > pip install opencv-python opencv-contrib-python fastapi uvicorn requests numpy
+
+pip uninstall opencv-contrib-python
+pip install opencv-contrib-python
+
+> pip install opencv-python opencv-contrib-python fastapi uvicorn requests numpy
