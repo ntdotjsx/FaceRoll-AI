@@ -118,15 +118,12 @@ async def detect_face(file: UploadFile = File(...)):
         img_bytes = await file.read()
         img_array = np.frombuffer(img_bytes, np.uint8)
         frame = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = face_cascade.detectMultiScale(gray, 1.1, 4)
 
-        if len(faces) > 0:
-            (x, y, w, h) = max(faces, key=lambda r: r[2] * r[3])
-            roi_gray = gray[y: y + h, x: x + w]
-
+        # Detect face with DNN and align it
+        gray = detect_and_align(frame)
+        if gray is not None:
             # Enhance + augment
-            proc = enhance_face(roi_gray)
+            proc = enhance_face(gray)
             augmented_images = augment(proc)
 
             best_name = "Unknown"
