@@ -1,4 +1,3 @@
-opencv-python 
 opencv-contrib-python 
 fastapi 
 uvicorn 
