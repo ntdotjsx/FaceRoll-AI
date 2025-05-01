@@ -1,2 +1,8 @@
 [phases.setup]
-nixPkgs = ['mesa', 'libGL', 'libGLU']
+nixPkgs = ['python311', 'libGL', 'libGLU', 'mesa']
+
+[phases.install]
+cmds = ['pip install --upgrade pip', 'pip install -r requirements.txt']
+
+[start]
+cmd = "uvicorn recognize_faces:app --host 0.0.0.0 --port $PORT"
