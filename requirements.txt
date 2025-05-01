@@ -1,0 +1,10 @@
+opencv-python 
+opencv-contrib-python 
+fastapi 
+uvicorn 
+requests 
+numpy
+python-multipart
+pillow 
+python-dotenv 
+aiofiles
