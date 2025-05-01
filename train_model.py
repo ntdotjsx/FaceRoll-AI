@@ -1,10 +1,14 @@
 import cv2
 import os
 import numpy as np
-import json 
+import json
 
-face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-recognizer = cv2.face.LBPHFaceRecognizer_create(radius=2, neighbors=8, grid_x=8, grid_y=8)
+face_cascade = cv2.CascadeClassifier(
+    cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+)
+recognizer = cv2.face.LBPHFaceRecognizer_create(
+    radius=2, neighbors=8, grid_x=8, grid_y=8
+)
 
 data_path = "data"
 
@@ -20,16 +24,18 @@ for dir_name in os.listdir(data_path):
         img = cv2.imread(img_path)
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-        faces_in_img = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
-        for (x, y, w, h) in faces_in_img:
-            roi_gray = gray[y:y+h, x:x+w]
+        faces_in_img = face_cascade.detectMultiScale(
+            gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30)
+        )
+        for x, y, w, h in faces_in_img:
+            roi_gray = gray[y : y + h, x : x + w]
             faces.append(roi_gray)
             labels.append(label)
-            
-    id_to_name[label] = dir_name 
+
+    id_to_name[label] = dir_name
     label += 1
 
-with open('id_to_name.json', 'w') as json_file:
+with open("id_to_name.json", "w") as json_file:
     json.dump(id_to_name, json_file)
 
 print("Training model...")
