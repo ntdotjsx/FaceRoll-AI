@@ -19,3 +19,12 @@ pip install opencv-contrib-python
 
 
 uvicorn recognize_faces:app --host 0.0.0.0 --port 8000
+
+# Train ครั้งเดียว
+python auto_train.py
+
+# Train วนเรื่อย ๆ ทุก 5 นาที
+python auto_train.py --loop
+
+# Train วนทุก 60 วินาที
+python auto_train.py --loop --interval 60
