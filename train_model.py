@@ -82,7 +82,7 @@ def train_model():
             img_path = os.path.join(subject_path, img_name)
             img = cv2.imread(img_path)
             if img is None:
-                print(f"❌ ไม่อ่านภาพได้: {img_path}")
+                print(f"❌ NONE PIX: {img_path}")
                 continue
 
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -94,7 +94,7 @@ def train_model():
             roi_gray = gray[y:y+h, x:x+w]
 
             if is_blurry(roi_gray, thresh=30.0):
-                print(f"⚠️ รูปเบลอ, ข้าม: {img_path}")
+                print(f"⚠️ THIS BLUR ISUS: {img_path}")
                 continue
 
             processed = enhance_face(roi_gray)
@@ -106,7 +106,7 @@ def train_model():
         label += 1
 
     if not faces:
-        print("🚫 ไม่มีข้อมูลใหม่สำหรับการเทรน")
+        print("🚫 NONE DATA NAJAAA")
         return
 
     with open("id_to_name.json", "w") as json_file:
@@ -125,11 +125,11 @@ def train_model():
 if args.loop:
     try:
         while True:
-            print("\n🔁 เริ่มรอบการ train ใหม่...")
+            print("\n🔁 Start train...")
             train_model()
-            print(f"⏳ รอ {args.interval} วินาที...\n")
+            print(f"⏳ WAIT {args.interval} S...\n")
             time.sleep(args.interval)
     except KeyboardInterrupt:
-        print("\n🛑 หยุดการ train อัตโนมัติแล้ว")
+        print("\n🛑 Shutdown train")
 else:
     train_model()
