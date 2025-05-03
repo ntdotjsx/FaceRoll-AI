@@ -18,6 +18,7 @@ face_net = cv2.dnn.readNetFromCaffe(
 )
 
 landmark_detector = cv2.face.createFacemarkLBF()
+landmark_detector.loadModel("lbfmodel.yaml")
 
 app = FastAPI()
 
