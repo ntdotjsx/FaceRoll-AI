@@ -18,7 +18,6 @@ face_net = cv2.dnn.readNetFromCaffe(
 )
 
 landmark_detector = cv2.face.createFacemarkLBF()
-landmark_detector.loadModel("lbfmodel.yaml")
 
 app = FastAPI()
 
@@ -37,7 +36,7 @@ cooldown = 5  # วินาที
 
 # ─── Config ──────────────────────────────────────────────────────
 CONF_THRESHOLD = 0.4     # Face detection threshold
-RECOG_THRESHOLD = 10.0   # LBPH threshold (lower = more sensitive, higher = more strict)
+RECOG_THRESHOLD = 200.0   # LBPH threshold (lower = more sensitive, higher = more strict)
 
 DB_CONFIG = {
     "host": "localhost",
