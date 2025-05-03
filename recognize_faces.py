@@ -8,6 +8,7 @@ from io import BytesIO
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
 import pymysql
+import os
 
 app = FastAPI()
 
@@ -41,12 +42,40 @@ DB_CONFIG = {
     "charset": "utf8mb4",
 }
 
+# ─── 3. ฟังก์ชันตรวจสอบการเปลี่ยนแปลงไฟล์ ─────────────────
+
+last_trainer_time = 0
+last_id_to_name_time = 0
+
+def load_model():
+    global recognizer, id_to_name, last_trainer_time, last_id_to_name_time
+
+    trainer_file = "trainer.yml"
+    id_to_name_file = "id_to_name.json"
+    
+    # ตรวจสอบเวลาของไฟล์
+    trainer_modified_time = os.path.getmtime(trainer_file)
+    id_to_name_modified_time = os.path.getmtime(id_to_name_file)
+
+    # โหลดใหม่เมื่อมีการเปลี่ยนแปลง
+    if trainer_modified_time != last_trainer_time:
+        recognizer.read(trainer_file)
+        last_trainer_time = trainer_modified_time
+        print(f"Trainer model reloaded at {time.ctime(trainer_modified_time)}")
+    
+    if id_to_name_modified_time != last_id_to_name_time:
+        with open(id_to_name_file) as f:
+            id_to_name = json.load(f)
+        last_id_to_name_time = id_to_name_modified_time
+        print(f"id_to_name.json reloaded at {time.ctime(id_to_name_modified_time)}")
+
+# ─── 4. ฟังก์ชันอื่นๆ ──────────────────────────────────────
+
 def enhance_face(roi_gray):
     clahe = cv2.createCLAHE(2.0, (8, 8))
     e = clahe.apply(roi_gray)
     e = cv2.medianBlur(e, 3)
     return cv2.resize(e, (160, 160))
-
 
 def augment(image):
     out = [image]
@@ -55,7 +84,6 @@ def augment(image):
         out.append(cv2.warpAffine(image, M, (160, 160)))
     out.append(cv2.flip(image, 1))
     return out
-
 
 def detect_and_align(img, conf_thresh=0.6):
     h, w = img.shape[:2]
@@ -97,7 +125,6 @@ def detect_and_align(img, conf_thresh=0.6):
 
     return gray
 
-
 def send_to_discord(name, conf, frame):
     now = time.time()
     if name == last_sent["name"] and now - last_sent["timestamp"] < cooldown:
@@ -112,10 +139,11 @@ def send_to_discord(name, conf, frame):
     except:
         pass
 
-
-# ─── 3. Endpoint ตรงกับ test_model.py เป๊ะ ─────────────────
+# ─── 5. Endpoint ตรงกับ test_model.py เป๊ะ ─────────────────
 @app.post("/detect")
 async def detect(file: UploadFile = File(...)):
+    load_model()  # โหลดโมเดลก่อนทุกครั้งที่เรียกใช้งาน
+    
     contents = await file.read()
     nparr = np.frombuffer(contents, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
