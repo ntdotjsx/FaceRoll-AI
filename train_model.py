@@ -4,6 +4,7 @@ import numpy as np
 import json
 import argparse
 import time
+import math
 
 # --- Argument ---
 parser = argparse.ArgumentParser()
@@ -15,6 +16,10 @@ args = parser.parse_args()
 face_net = cv2.dnn.readNetFromCaffe(
     "deploy.prototxt", "res10_300x300_ssd_iter_140000_fp16.caffemodel"
 )
+
+# --- Load Landmark Detector (LBF) ---
+landmark_detector = cv2.face.createFacemarkLBF()
+landmark_detector.loadModel("lbfmodel.yaml")
 
 # --- LBPH recognizer ---
 recognizer = cv2.face.LBPHFaceRecognizer_create(
@@ -46,96 +51,111 @@ def augment(image):
     sharpened = sharpen(image)
     return [image, flipped, brighter, darker, sharpened]
 
-def detect_face_dnn(image):
+def detect_and_align(image, conf_thresh=0.8):
+    """
+    Detect face with DNN, then align via LBF landmarks.
+    Returns aligned gray face of size (h,w) before resize.
+    """
     h, w = image.shape[:2]
-    blob = cv2.dnn.blobFromImage(image, 1.0, (300, 300), (104.0, 177.0, 123.0), swapRB=False, crop=False)
+    blob = cv2.dnn.blobFromImage(image, 1.0, (300,300), (104.0,177.0,123.0), swapRB=False, crop=False)
     face_net.setInput(blob)
-    detections = face_net.forward()
+    dets = face_net.forward()[0,0,:,:]
+
+    # เก็บกล่องใบหน้าทั้งหมด
     boxes = []
+    for d in dets:
+        if d[2] < conf_thresh:
+            continue
+        x1,y1,x2,y2 = (d[3:7]*[w,h,w,h]).astype(int)
+        x1,y1 = max(0,x1), max(0,y1)
+        x2,y2 = min(w,x2), min(h,y2)
+        boxes.append((x1,y1,x2-x1,y2-y1))
+    if len(boxes)!=1:
+        return None
 
-    for i in range(detections.shape[2]):
-        confidence = detections[0, 0, i, 2]
-        if confidence > 0.8:
-            box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
-            x1, y1, x2, y2 = box.astype(int)
-            boxes.append((x1, y1, x2 - x1, y2 - y1))
+    bx,by,bw,bh = boxes[0]
+    face = image[by:by+bh, bx:bx+bw]
+    gray = cv2.cvtColor(face, cv2.COLOR_BGR2GRAY)
 
-    if len(boxes) == 1:
-        return boxes[0]  # ต้องเจอแค่ใบหน้าเดียวเท่านั้น
-    return None
+    # Landmark alignment
+    rects = np.array([[[0,0,bw,bh]]], dtype=np.int32)
+    ok, landmarks = landmark_detector.fit(gray, rects)
+    if ok and len(landmarks)>0 and len(landmarks[0])>=2:
+        # eye centers
+        left = np.mean(landmarks[0][36:42], axis=0)
+        right = np.mean(landmarks[0][42:48], axis=0)
+        dx,dy = right-left
+        angle = math.degrees(math.atan2(dy,dx))
+        M = cv2.getRotationMatrix2D((bw/2,bh/2), angle, 1.0)
+        aligned = cv2.warpAffine(face, M, (bw,bh))
+        gray = cv2.cvtColor(aligned, cv2.COLOR_BGR2GRAY)
+
+    return gray
 
 # --- Training Logic ---
 def train_model():
     data_path = "data"
-    faces = []
-    labels = []
+    faces, labels = [], []
     label = 0
     id_to_name = {}
 
     for dir_name in sorted(os.listdir(data_path)):
-        subject_path = os.path.join(data_path, dir_name)
-        if not os.path.isdir(subject_path):
-            continue
+        subject = os.path.join(data_path, dir_name)
+        if not os.path.isdir(subject): continue
 
         print(f"📁 Processing: {dir_name}")
         added = 0
-
-        for img_name in os.listdir(subject_path):
-            img_path = os.path.join(subject_path, img_name)
-            img = cv2.imread(img_path)
+        for img_name in os.listdir(subject):
+            path = os.path.join(subject, img_name)
+            img = cv2.imread(path)
             if img is None:
-                print(f"❌ Cannot read image: {img_path}")
+                print(f"❌ Cannot read {path}")
                 continue
 
-            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            face_box = detect_face_dnn(img)
-            if face_box is None:
+            aligned_gray = detect_and_align(img)
+            if aligned_gray is None:
                 continue
 
-            x, y, w, h = face_box
-            roi_gray = gray[y:y+h, x:x+w]
-
-            if is_blurry(roi_gray, 30.0) or is_too_dark(roi_gray, 40):
-                print(f"⚠️ Bad quality: {img_path}")
+            if is_blurry(aligned_gray,30) or is_too_dark(aligned_gray,40):
+                print(f"⚠️ Bad quality: {path}")
                 continue
 
-            processed = enhance_face(roi_gray)
-            for aug in augment(processed):
+            proc = enhance_face(aligned_gray)
+            for aug in augment(proc):
                 faces.append(aug)
                 labels.append(label)
             added += 1
 
-        if added > 0:
+        if added>0:
             id_to_name[label] = dir_name
             label += 1
         else:
-            print(f"🚫 No valid images found in: {dir_name}")
+            print(f"🚫 No valid images in: {dir_name}")
 
     if not faces:
         print("🚫 No training data found.")
         return
 
-    with open("id_to_name.json", "w") as json_file:
-        json.dump(id_to_name, json_file)
+    # save mapping
+    with open("id_to_name.json","w") as j:
+        json.dump(id_to_name, j)
 
     print("⚙️ Training model...")
     recognizer.train(faces, np.array(labels))
     recognizer.save("trainer.yml")
-    print("✅ Model trained successfully!")
-
-    print("\n🧾 Label mapping:")
-    for label, name in id_to_name.items():
-        print(f"  Label {label}: {name}")
+    print("✅ Model trained successfully!\n🧾 Label mapping:")
+    for k,n in id_to_name.items():
+        print(f"  Label {k}: {n}")
 
 # --- Main ---
 if args.loop:
     try:
         while True:
-            print("\n🔁 Start training loop...")
+            print("\n🔁 Start training...")
             train_model()
             print(f"⏳ Waiting {args.interval} seconds...\n")
             time.sleep(args.interval)
     except KeyboardInterrupt:
-        print("\n🛑 Training loop stopped.")
+        print("\n🛑 Loop stopped.")
 else:
     train_model()
