@@ -104,7 +104,8 @@ def send_to_discord(name, conf, frame):
         return
     last_sent.update(name=name, timestamp=now)
     _, buf = cv2.imencode(".jpg", frame)
-    files = {"file": ("img.jpg", BytesIO(buf.tobytes()), "image/jpeg")}
+    timestamp = int(now)
+    files = {"file": (f"student_{timestamp}.jpg", BytesIO(buf.tobytes()), "image/jpeg")}
     data = {"content": f"✅ **{name}** เข้าเรียนแล้ว"}
     try:
         requests.post(DISCORD_WEBHOOK_URL, data=data, files=files).raise_for_status()
@@ -131,7 +132,7 @@ async def detect(file: UploadFile = File(...)):
     name = id_to_name.get(str(label), "Unknown")
 
     full_name = None
-    if name != "Unknown":
+    if name != "SET DATABASE":
         try:
             conn = pymysql.connect(**DB_CONFIG)
             with conn.cursor() as cursor:
@@ -147,6 +148,6 @@ async def detect(file: UploadFile = File(...)):
 
     if full_name:
         send_to_discord(full_name, conf, img)
-        return {"result": full_name, "confidence": round(conf, 2)}
+        return {"result": "PASS", "confidence": round(conf, 2)}
 
-    return {"result": "Unknown", "confidence": round(conf, 2)}
+    return {"result": "NOT PASS", "confidence": round(conf, 2)}
