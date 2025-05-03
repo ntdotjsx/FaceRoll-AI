@@ -136,6 +136,45 @@ if (isset($_POST['delete_image'])) {
 
 <body class="bg-gray-100">
 
+<div class="modal fade modal-xl border-0" id="hee" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered modal-xl">
+                        <div class="modal-content rounded-lg shadow-lg">
+                            <form method="POST" class="space-y-6 p-6">
+                                <!-- เพิ่มผู้ใช้ใหม่ -->
+                                <h2 class="text-2xl font-bold text-gray-800 mb-4">เพิ่มผู้ใช้ใหม่</h2>
+                                <div class="flex flex-col gap-4">
+                                    <input type="text" name="fname" placeholder="ชื่อ" required class="border px-4 py-3 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <input type="text" name="lname" placeholder="นามสกุล" required class="border px-4 py-3 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+
+                                    <select name="folder" required class="border px-4 py-3 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        <option value="">เลือกโฟลเดอร์</option>
+                                        <?php foreach ($folders as $folder): ?>
+                                            <?php $folderName = basename($folder); ?>
+                                            <?php if (!in_array($folderName, $usedFolders)): ?>
+                                                <option value="<?= $folderName ?>"><?= $folderName ?></option>
+                                            <?php endif; ?>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+
+                                <button type="submit" name="add_user" class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition duration-300 w-full">เพิ่มผู้ใช้</button>
+                            </form>
+
+                            <!-- สร้างโฟลเดอร์ -->
+                            <form method="POST" class="flex gap-3 mb-3 p-6 rounded-lg">
+                                <input type="text" name="new_folder" placeholder="ชื่อโฟลเดอร์ใหม่" required class="flex-1 border rounded-lg px-4 py-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <button type="submit" class="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition duration-300">+ สร้างโฟลเดอร์</button>
+                            </form>
+
+                            <!-- ลบโฟลเดอร์ -->
+                            <form method="POST" class="flex gap-3 mb-3 p-6 rounded-lg" onsubmit="return confirm('แน่ใจหรือไม่ว่าต้องการลบโฟลเดอร์นี้?');">
+                                <input type="text" name="delete_folder" placeholder="ชื่อโฟลเดอร์ที่จะลบ" required class="flex-1 border rounded-lg px-4 py-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500">
+                                <button type="submit" class="bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 transition duration-300">🗑️ ลบโฟลเดอร์</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
     <!-- ✅ เนื้อหาหลัก -->
     <div class="max-w-4xl mx-auto bg-white p-6 mt-8 rounded shadow">
         <h1 class="text-2xl font-bold mb-4 d-flex justify-between items-center">
@@ -174,45 +213,6 @@ if (isset($_POST['delete_image'])) {
                     <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#manageUserModal<?= $user['id'] ?>">
                         จัดการ
                     </button>
-                </div>
-
-                <div class="modal fade modal-xl border-0" id="hee" tabindex="-1" aria-hidden="true">
-                    <div class="modal-dialog modal-dialog-centered modal-xl">
-                        <div class="modal-content rounded-lg shadow-lg">
-                            <form method="POST" class="space-y-6 p-6">
-                                <!-- เพิ่มผู้ใช้ใหม่ -->
-                                <h2 class="text-2xl font-bold text-gray-800 mb-4">เพิ่มผู้ใช้ใหม่</h2>
-                                <div class="flex flex-col gap-4">
-                                    <input type="text" name="fname" placeholder="ชื่อ" required class="border px-4 py-3 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                    <input type="text" name="lname" placeholder="นามสกุล" required class="border px-4 py-3 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-
-                                    <select name="folder" required class="border px-4 py-3 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                        <option value="">เลือกโฟลเดอร์</option>
-                                        <?php foreach ($folders as $folder): ?>
-                                            <?php $folderName = basename($folder); ?>
-                                            <?php if (!in_array($folderName, $usedFolders)): ?>
-                                                <option value="<?= $folderName ?>"><?= $folderName ?></option>
-                                            <?php endif; ?>
-                                        <?php endforeach; ?>
-                                    </select>
-                                </div>
-
-                                <button type="submit" name="add_user" class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition duration-300 w-full">เพิ่มผู้ใช้</button>
-                            </form>
-
-                            <!-- สร้างโฟลเดอร์ -->
-                            <form method="POST" class="flex gap-3 mb-3 p-6 rounded-lg">
-                                <input type="text" name="new_folder" placeholder="ชื่อโฟลเดอร์ใหม่" required class="flex-1 border rounded-lg px-4 py-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                <button type="submit" class="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition duration-300">+ สร้างโฟลเดอร์</button>
-                            </form>
-
-                            <!-- ลบโฟลเดอร์ -->
-                            <form method="POST" class="flex gap-3 mb-3 p-6 rounded-lg" onsubmit="return confirm('แน่ใจหรือไม่ว่าต้องการลบโฟลเดอร์นี้?');">
-                                <input type="text" name="delete_folder" placeholder="ชื่อโฟลเดอร์ที่จะลบ" required class="flex-1 border rounded-lg px-4 py-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500">
-                                <button type="submit" class="bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 transition duration-300">🗑️ ลบโฟลเดอร์</button>
-                            </form>
-                        </div>
-                    </div>
                 </div>
 
                 <!-- Modal -->
