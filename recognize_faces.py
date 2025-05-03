@@ -25,7 +25,7 @@ face_net = cv2.dnn.readNetFromCaffe(
 landmark_detector = cv2.face.createFacemarkLBF()
 landmark_detector.loadModel("lbfmodel.yaml")
 
-DISCORD_WEBHOOK_URL = "YOUR_DISCORD_WEBHOOK_URL"
+DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1368248118084239361/y3ZbMyfH98lf-JPAKGE1WCjkPJ7JdtXUufOYIXZ3KSEg3DDCE0Y9JFINYQNK49WPOOsA"
 last_sent = {"name": None, "timestamp": 0}
 cooldown = 5  # วินาที
 
