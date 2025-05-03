@@ -8,8 +8,6 @@ from io import BytesIO
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
 import pymysql
-import logging
-from fastapi import HTTPException
 
 app = FastAPI()
 
@@ -29,7 +27,7 @@ face_net = cv2.dnn.readNetFromCaffe(
 landmark_detector = cv2.face.createFacemarkLBF()
 landmark_detector.loadModel("lbfmodel.yaml")
 
-DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1368248118084239361/y3ZbMyfH98lf-JPAKGE1WCjkPJ7JdtXUufOYIXZ3KSEg3DDCE0Y9JFINYQNK49WPOOsA"
+DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1368350205153509456/QoewWgcagORVXglpEAntFn0x4asxAGyEr98DIU-DEymomNT0nA7pgD1-ktl-lNRYSwwD"
 last_sent = {"name": None, "timestamp": 0}
 cooldown = 5  # วินาที
 
@@ -116,61 +114,40 @@ def send_to_discord(name, conf, frame):
 
 
 # ─── 3. Endpoint ตรงกับ test_model.py เป๊ะ ─────────────────
-
-# ปรับปรุงการจัดการข้อผิดพลาดที่เกิดขึ้นในการเชื่อมต่อฐานข้อมูล
-def fetch_full_name_from_db(name):
-    try:
-        conn = pymysql.connect(**DB_CONFIG)
-        with conn.cursor() as cursor:
-            cursor.execute(
-                "SELECT fname, lname FROM users WHERE folder_name = %s", (name,)
-            )
-            row = cursor.fetchone()
-        conn.close()
-        if row:
-            return f"{row[0]} {row[1]}"
-        return None
-    except pymysql.MySQLError as e:
-        logging.error(f"[DB ERROR] {e}")
-        return None
-    except Exception as e:
-        logging.error(f"[UNKNOWN ERROR] {e}")
-        return None
-
-
 @app.post("/detect")
 async def detect(file: UploadFile = File(...)):
-    try:
-        contents = await file.read()
-        nparr = np.frombuffer(contents, np.uint8)
-        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        if img is None:
-            raise HTTPException(status_code=400, detail="Invalid image format")
+    contents = await file.read()
+    nparr = np.frombuffer(contents, np.uint8)
+    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    if img is None:
+        raise HTTPException(status_code=400, detail="Invalid image format")
 
-        gface = detect_and_align(img, conf_thresh=0.5)
-        if gface is None:
-            return {"result": "Unknown", "confidence": 0.0}
+    gface = detect_and_align(img, conf_thresh=0.5)
+    if gface is None:
+        return {"result": "Unknown", "confidence": 0.0}
 
-        proc = enhance_face(gface)
-        label, conf = recognizer.predict(proc)
-        name = id_to_name.get(str(label), "Unknown")
+    proc = enhance_face(gface)
 
-        # ขั้นตอนการตรวจสอบ confidence
-        if conf < 80:  # ถ้าความมั่นใจต่ำกว่า 80%
-            return {"result": "NOT CONFIDENT", "confidence": round(conf, 2)}
+    label, conf = recognizer.predict(proc)
+    name = id_to_name.get(str(label), "Unknown")
 
-        full_name = None
-        if name != "SET DATABASE":
-            full_name = fetch_full_name_from_db(name)
+    full_name = None
+    if name != "SET DATABASE":
+        try:
+            conn = pymysql.connect(**DB_CONFIG)
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "SELECT fname, lname FROM users WHERE folder_name = %s", (name,)
+                )
+                row = cursor.fetchone()
+            conn.close()
+            if row:
+                full_name = f"{row[0]} {row[1]}"
+        except Exception as e:
+            print(f"[DB ERROR] {e}")
 
-        if full_name:
-            send_to_discord(full_name, conf, img)
-            return {"result": "PASS", "confidence": round(conf, 2)}
+    if full_name:
+        send_to_discord(full_name, conf, img)
+        return {"result": "PASS", "confidence": round(conf, 2)}
 
-        return {"result": "NOT PASS", "confidence": round(conf, 2)}
-    
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        logging.error(f"Error processing request: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+    return {"result": "NOT PASS", "confidence": round(conf, 2)}
