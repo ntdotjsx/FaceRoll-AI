@@ -21,12 +21,15 @@ recognizer = cv2.face.LBPHFaceRecognizer_create(
     radius=1, neighbors=8, grid_x=10, grid_y=10
 )
 
+# --- Utils ---
 def is_blurry(image, thresh=100.0):
-    var = cv2.Laplacian(image, cv2.CV_64F).var()
-    return var < thresh
+    return cv2.Laplacian(image, cv2.CV_64F).var() < thresh
+
+def is_too_dark(image, thresh=40):
+    return np.mean(image) < thresh
 
 def sharpen(image):
-    kernel = np.array([[-1, -1, -1], [-1, 9,-1], [-1, -1, -1]])
+    kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
     return cv2.filter2D(image, -1, kernel)
 
 def enhance_face(roi_gray):
@@ -38,15 +41,10 @@ def enhance_face(roi_gray):
 
 def augment(image):
     flipped = cv2.flip(image, 1)
-    brighter = cv2.convertScaleAbs(image, alpha=1.2, beta=15)
-    darker = cv2.convertScaleAbs(image, alpha=0.8, beta=-15)
-    (h, w) = image.shape[:2]
-    center = (w // 2, h // 2)
-    M = cv2.getRotationMatrix2D(center, 15, 1.0)
-    rotated = cv2.warpAffine(image, M, (w, h))
-    blurred = cv2.GaussianBlur(image, (5, 5), 0)
+    brighter = cv2.convertScaleAbs(image, alpha=1.1, beta=10)
+    darker = cv2.convertScaleAbs(image, alpha=0.9, beta=-10)
     sharpened = sharpen(image)
-    return [image, flipped, brighter, darker, rotated, blurred, sharpened]
+    return [image, flipped, brighter, darker, sharpened]
 
 def detect_face_dnn(image):
     h, w = image.shape[:2]
@@ -57,15 +55,16 @@ def detect_face_dnn(image):
 
     for i in range(detections.shape[2]):
         confidence = detections[0, 0, i, 2]
-        if confidence > 0.75:  # เพิ่มค่า threshold ให้สูงขึ้นเพื่อให้มั่นใจ
+        if confidence > 0.8:
             box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
             x1, y1, x2, y2 = box.astype(int)
             boxes.append((x1, y1, x2 - x1, y2 - y1))
 
-    if boxes:
-        return sorted(boxes, key=lambda b: b[2] * b[3], reverse=True)[0]
+    if len(boxes) == 1:
+        return boxes[0]  # ต้องเจอแค่ใบหน้าเดียวเท่านั้น
     return None
 
+# --- Training Logic ---
 def train_model():
     data_path = "data"
     faces = []
@@ -78,11 +77,14 @@ def train_model():
         if not os.path.isdir(subject_path):
             continue
 
+        print(f"📁 Processing: {dir_name}")
+        added = 0
+
         for img_name in os.listdir(subject_path):
             img_path = os.path.join(subject_path, img_name)
             img = cv2.imread(img_path)
             if img is None:
-                print(f"❌ NONE PIX: {img_path}")
+                print(f"❌ Cannot read image: {img_path}")
                 continue
 
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -93,20 +95,24 @@ def train_model():
             x, y, w, h = face_box
             roi_gray = gray[y:y+h, x:x+w]
 
-            if is_blurry(roi_gray, thresh=30.0):
-                print(f"⚠️ THIS BLUR ISUS: {img_path}")
+            if is_blurry(roi_gray, 30.0) or is_too_dark(roi_gray, 40):
+                print(f"⚠️ Bad quality: {img_path}")
                 continue
 
             processed = enhance_face(roi_gray)
             for aug in augment(processed):
                 faces.append(aug)
                 labels.append(label)
+            added += 1
 
-        id_to_name[label] = dir_name
-        label += 1
+        if added > 0:
+            id_to_name[label] = dir_name
+            label += 1
+        else:
+            print(f"🚫 No valid images found in: {dir_name}")
 
     if not faces:
-        print("🚫 NONE DATA NAJAAA")
+        print("🚫 No training data found.")
         return
 
     with open("id_to_name.json", "w") as json_file:
@@ -121,15 +127,15 @@ def train_model():
     for label, name in id_to_name.items():
         print(f"  Label {label}: {name}")
 
-# Run once or loop
+# --- Main ---
 if args.loop:
     try:
         while True:
-            print("\n🔁 Start train...")
+            print("\n🔁 Start training loop...")
             train_model()
-            print(f"⏳ WAIT {args.interval} S...\n")
+            print(f"⏳ Waiting {args.interval} seconds...\n")
             time.sleep(args.interval)
     except KeyboardInterrupt:
-        print("\n🛑 Shutdown train")
+        print("\n🛑 Training loop stopped.")
 else:
     train_model()
