@@ -8,3 +8,5 @@ pillow
 python-dotenv 
 aiofiles
 pymysql
+joblib
+scikit-learn

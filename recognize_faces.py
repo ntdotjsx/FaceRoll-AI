@@ -8,7 +8,8 @@ from io import BytesIO
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
 import pymysql
-import os
+import logging
+from fastapi import HTTPException
 
 app = FastAPI()
 
@@ -42,40 +43,12 @@ DB_CONFIG = {
     "charset": "utf8mb4",
 }
 
-# ─── 3. ฟังก์ชันตรวจสอบการเปลี่ยนแปลงไฟล์ ─────────────────
-
-last_trainer_time = 0
-last_id_to_name_time = 0
-
-def load_model():
-    global recognizer, id_to_name, last_trainer_time, last_id_to_name_time
-
-    trainer_file = "trainer.yml"
-    id_to_name_file = "id_to_name.json"
-    
-    # ตรวจสอบเวลาของไฟล์
-    trainer_modified_time = os.path.getmtime(trainer_file)
-    id_to_name_modified_time = os.path.getmtime(id_to_name_file)
-
-    # โหลดใหม่เมื่อมีการเปลี่ยนแปลง
-    if trainer_modified_time != last_trainer_time:
-        recognizer.read(trainer_file)
-        last_trainer_time = trainer_modified_time
-        print(f"Trainer model reloaded at {time.ctime(trainer_modified_time)}")
-    
-    if id_to_name_modified_time != last_id_to_name_time:
-        with open(id_to_name_file) as f:
-            id_to_name = json.load(f)
-        last_id_to_name_time = id_to_name_modified_time
-        print(f"id_to_name.json reloaded at {time.ctime(id_to_name_modified_time)}")
-
-# ─── 4. ฟังก์ชันอื่นๆ ──────────────────────────────────────
-
 def enhance_face(roi_gray):
     clahe = cv2.createCLAHE(2.0, (8, 8))
     e = clahe.apply(roi_gray)
     e = cv2.medianBlur(e, 3)
     return cv2.resize(e, (160, 160))
+
 
 def augment(image):
     out = [image]
@@ -84,6 +57,7 @@ def augment(image):
         out.append(cv2.warpAffine(image, M, (160, 160)))
     out.append(cv2.flip(image, 1))
     return out
+
 
 def detect_and_align(img, conf_thresh=0.6):
     h, w = img.shape[:2]
@@ -125,6 +99,7 @@ def detect_and_align(img, conf_thresh=0.6):
 
     return gray
 
+
 def send_to_discord(name, conf, frame):
     now = time.time()
     if name == last_sent["name"] and now - last_sent["timestamp"] < cooldown:
@@ -139,43 +114,63 @@ def send_to_discord(name, conf, frame):
     except:
         pass
 
-# ─── 5. Endpoint ตรงกับ test_model.py เป๊ะ ─────────────────
+
+# ─── 3. Endpoint ตรงกับ test_model.py เป๊ะ ─────────────────
+
+# ปรับปรุงการจัดการข้อผิดพลาดที่เกิดขึ้นในการเชื่อมต่อฐานข้อมูล
+def fetch_full_name_from_db(name):
+    try:
+        conn = pymysql.connect(**DB_CONFIG)
+        with conn.cursor() as cursor:
+            cursor.execute(
+                "SELECT fname, lname FROM users WHERE folder_name = %s", (name,)
+            )
+            row = cursor.fetchone()
+        conn.close()
+        if row:
+            return f"{row[0]} {row[1]}"
+        return None
+    except pymysql.MySQLError as e:
+        logging.error(f"[DB ERROR] {e}")
+        return None
+    except Exception as e:
+        logging.error(f"[UNKNOWN ERROR] {e}")
+        return None
+
+
 @app.post("/detect")
 async def detect(file: UploadFile = File(...)):
-    load_model()  # โหลดโมเดลก่อนทุกครั้งที่เรียกใช้งาน
+    try:
+        contents = await file.read()
+        nparr = np.frombuffer(contents, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        if img is None:
+            raise HTTPException(status_code=400, detail="Invalid image format")
+
+        gface = detect_and_align(img, conf_thresh=0.5)
+        if gface is None:
+            return {"result": "Unknown", "confidence": 0.0}
+
+        proc = enhance_face(gface)
+        label, conf = recognizer.predict(proc)
+        name = id_to_name.get(str(label), "Unknown")
+
+        # ขั้นตอนการตรวจสอบ confidence
+        if conf < 80:  # ถ้าความมั่นใจต่ำกว่า 80%
+            return {"result": "NOT CONFIDENT", "confidence": round(conf, 2)}
+
+        full_name = None
+        if name != "SET DATABASE":
+            full_name = fetch_full_name_from_db(name)
+
+        if full_name:
+            send_to_discord(full_name, conf, img)
+            return {"result": "PASS", "confidence": round(conf, 2)}
+
+        return {"result": "NOT PASS", "confidence": round(conf, 2)}
     
-    contents = await file.read()
-    nparr = np.frombuffer(contents, np.uint8)
-    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-    if img is None:
-        raise HTTPException(status_code=400, detail="Invalid image format")
-
-    gface = detect_and_align(img, conf_thresh=0.5)
-    if gface is None:
-        return {"result": "Unknown", "confidence": 0.0}
-
-    proc = enhance_face(gface)
-
-    label, conf = recognizer.predict(proc)
-    name = id_to_name.get(str(label), "Unknown")
-
-    full_name = None
-    if name != "SET DATABASE":
-        try:
-            conn = pymysql.connect(**DB_CONFIG)
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    "SELECT fname, lname FROM users WHERE folder_name = %s", (name,)
-                )
-                row = cursor.fetchone()
-            conn.close()
-            if row:
-                full_name = f"{row[0]} {row[1]}"
-        except Exception as e:
-            print(f"[DB ERROR] {e}")
-
-    if full_name:
-        send_to_discord(full_name, conf, img)
-        return {"result": "PASS", "confidence": round(conf, 2)}
-
-    return {"result": "NOT PASS", "confidence": round(conf, 2)}
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        logging.error(f"Error processing request: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
